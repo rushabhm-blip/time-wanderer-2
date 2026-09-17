@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Time Wanderers - Interactive Journey</title>
+  <meta name="description" content="Time Wanderers - An epic historical adventure across ancient civilizations. Step inside the circle to begin.">
+  
+  <!-- Google Fonts: Cinzel, Cinzel Decorative, Cormorant Garamond -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800;900&family=Cinzel+Decorative:wght@700&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe Hands & Camera Utils for Real-Time Palm Tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Hidden Vision Camera Feed & Offscreen Processing Canvas -->
+  <video id="camera-feed" playsinline muted autoplay class="offscreen-video"></video>
+  <canvas id="vision-canvas" class="offscreen-canvas"></canvas>
+
+  <!-- Gesture Palm Cursor (Follows visitor's hand or mouse) -->
+  <div id="palm-cursor" class="palm-cursor" aria-hidden="true">
+    <div class="palm-aura"></div>
+    <div class="palm-ring"></div>
+    <!-- Open Palm Icon -->
+    <svg class="palm-icon palm-open" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/>
+    </svg>
+    <!-- Closed Palm / Fist Icon -->
+    <svg class="palm-icon palm-closed hidden" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.5 10c-.83 0-1.5.67-1.5 1.5v-1c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5V10c0-.83-.67-1.5-1.5-1.5S12 9.17 12 10V4.5c0-.83-.67-1.5-1.5-1.5S9 3.67 9 4.5V14.8l-3.32-2.1c-.2-.13-.43-.2-.68-.2-.72 0-1.35.5-1.48 1.21l-.52 2.89L8.6 22h8.9c2.21 0 4-1.79 4-4v-6.5c0-.83-.67-1.5-1.5-1.5z"/>
+    </svg>
+    <span class="palm-label" id="palm-label">Open Palm</span>
+  </div>
+
+  <!-- SCREEN 1: Landing / First Screen -->
+  <main id="scene-container" class="scene-container">
+    <!-- Full-screen Cinematic Background Image with Parallax wrapper -->
+    <div id="bg-parallax" class="bg-parallax">
+      <img src="assets/background.jpg" alt="Ancient civilizations background" id="bg-image" class="bg-image" />
+    </div>
+
+    <!-- Atmospheric Particle Canvas (Golden dust / sand motes) -->
+    <canvas id="particles-canvas" class="particles-canvas"></canvas>
+
+    <!-- Top & Bottom Vignette Overlay for Depth & Readability -->
+    <div class="vignette-overlay"></div>
+    <div class="ambient-glow"></div>
+
+    <!-- Top Logo Placement & Subtitle -->
+    <header class="logo-wrapper" id="logo-wrapper">
+      <img src="assets/logo.png" alt="Time Wanderers" id="main-logo" class="main-logo" />
+      <h2 class="hero-subtitle">Wander. Discover. Uncover.</h2>
+    </header>
+
+    <!-- Bottom Container with Humanoid Step-in Instruction & Prompt -->
+    <footer class="bottom-container" id="bottom-container">
+      <!-- Humanoid Instructional Animated Graphic (Centered above text) -->
+      <div class="instruction-icon-wrapper centered-above" title="Instruction: Step inside the circle on the floor">
+        <svg class="instruction-svg" viewBox="0 0 120 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Floor Perspective Circle -->
+          <g class="floor-target">
+            <ellipse class="floor-base-disc" cx="76" cy="58" rx="28" ry="11" fill="rgba(216, 178, 110, 0.08)" />
+            <ellipse class="floor-base-ring" cx="76" cy="58" rx="28" ry="11" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2.5" />
+            <ellipse class="floor-target-pulse" cx="76" cy="58" rx="28" ry="11" stroke="currentColor" stroke-width="2.2" />
+          </g>
+
+          <!-- Animated Humanoid Figure (Icon-style with volume & rounded shapes) -->
+          <g class="anim-person">
+            <!-- Head -->
+            <circle class="person-head" cx="0" cy="10" r="5.2" fill="currentColor" />
+            
+            <!-- Torso (Humanoid icon rounded pill shape) -->
+            <rect class="person-torso" x="-4.5" y="17" width="9" height="17" rx="4.5" fill="currentColor" />
+            
+            <!-- Arms with natural joint bend -->
+            <path class="person-left-arm" d="M -3.5 19 Q -7 25 -5 32" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" />
+            <path class="person-right-arm" d="M 3.5 19 Q 7 25 5 32" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" />
+            
+            <!-- Legs with humanoid proportion and rounded stroke -->
+            <path class="person-left-leg" d="M -2.5 32 L -4 44 L -5 56" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            <path class="person-right-leg" d="M 2.5 32 L 4 44 L 5 56" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          </g>
+        </svg>
+      </div>
+
+      <!-- Softly Blinking Call to Action Button -->
+      <button class="cta-step-closer" id="cta-button" aria-label="Step inside circle to begin">
+        <span class="cta-glyph left-glyph">&#10022;</span>
+        <span class="cta-text">step inside the circle to begin</span>
+        <span class="cta-glyph right-glyph">&#10022;</span>
+      </button>
+      <div class="ripple-ring" id="ripple-ring"></div>
+    </footer>
+
+    <!-- Discreet Vision Status Sensor Beacon (Hidden by default, press 'D' for debug HUD) -->
+    <div id="sensor-beacon" class="sensor-beacon hidden" title="Camera Floor Sensor (Press 'D' for debug view)">
+      <span class="sensor-dot"></span>
+      <span class="sensor-label">Floor Vision Ready</span>
+    </div>
+
+    <!-- Audio / Atmosphere Toggle Control (Upper Right) -->
+    <button id="sound-toggle" class="sound-toggle" title="Toggle Atmospheric Audio" aria-label="Toggle Sound">
+      <svg class="sound-icon-off" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+      </svg>
+      <svg class="sound-icon-on hidden" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+      </svg>
+    </button>
+
+    <!-- Ambient Soundscape for First Slide (Landing Screen) -->
+    <audio id="landing-ambient-audio" loop preload="auto">
+      <source src="Indus Valley Soundscape (Take 1).mp3" type="audio/mpeg">
+      <source src="assets/Indus Valley Soundscape (Take 1).mp3" type="audio/mpeg">
+    </audio>
+  </main>
+
+  <!-- SCREEN 2: Interactive Ancient Civilisations Map with Boundary Overlays -->
+  <section id="map-screen" class="map-screen hidden">
+    <!-- Map Background Image -->
+    <div class="map-bg-wrapper">
+      <img src="assets/map.jpg" alt="Ancient Civilisations Map" id="map-image" class="map-image" />
+    </div>
+
+    <!-- Interactive Civilization Boundaries SVG Overlay -->
+    <svg id="map-boundaries-svg" class="map-boundaries-svg" viewBox="0 0 1024 576" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <!-- Golden Glow Filter for Boundaries -->
+        <filter id="boundary-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur2" />
+          <feMerge>
+            <feMergeNode in="blur2" />
+            <feMergeNode in="blur1" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Indus Valley Civilization Boundary (User's exact vector boundary) -->
+      <svg id="boundary-indus-container" x="624" y="88" width="282" height="265" viewBox="0 0 431 405">
+        <path id="boundary-indus" class="civ-boundary indus-boundary" 
+              d="M74.1836 11.399C75.9771 11.399 80.6642 10.6837 83.5658 8.33749C85.007 7.17217 87.1773 7.06412 89.2499 7.42175C93.4832 8.1522 96.9199 11.7458 100.81 12.9324C105.885 14.4804 111.908 5.27599 119.491 1.92731C121.105 1.21455 122.03 0.930291 122.937 1.01428C126.761 1.36808 129.258 4.88585 134.939 8.137C136.961 9.29365 139.196 9.40495 140.911 10.9357C145.338 14.8879 142.631 25.108 144.888 30.6133C145.434 31.9458 145.525 33.0516 145.974 33.8725C148.27 38.0631 155.982 39.2071 159.873 40.5645C163.762 41.9213 168.261 42.9893 171.797 45.5279C175.159 47.9421 179.64 49.8601 183.536 52.0302C185.175 52.9432 186.522 54.2003 187.695 55.5496C190.278 58.5212 187.258 63.3957 185.541 67.6411C184.891 69.2465 185.264 72.0329 186.069 74.3087C189.141 82.9961 198.074 83.9971 202.403 87.6059C211.836 95.4687 229.686 90.1472 231.759 90.8651C234.003 91.6425 235.11 94.2924 236.37 96.0968C240.87 102.542 257.126 97.1968 261.2 99.2585C265.993 101.684 267.616 107.286 269.876 110.548C272.176 113.869 275.733 117.224 281.057 118.595C290.1 120.923 294.698 121.028 298.41 122.293C302.343 123.634 304.636 128.061 306.635 132.128C308.341 135.597 308.082 139.44 308.895 143.236C309.946 148.144 311.149 152.445 311.967 157.584C313.412 166.661 315.841 170.326 319.45 174.214C322.202 177.179 325.411 179.364 328.933 181.802C333.25 184.792 336.779 187.85 340.853 189.036C344.977 190.237 353.002 190.754 359.006 191.922C362.858 192.671 364.966 197.961 367.768 201.396C371.932 206.502 376.876 208.44 380.412 210.705C383.579 212.734 388.071 214.585 392.241 216.844C396.042 218.905 398.919 221.987 404.695 225.69C408.342 228.029 411.024 231.198 414.278 231.843C417.599 232.501 418.437 237.516 419.883 241.133C421.564 245.334 425.654 249.08 427.74 253.674C431.819 262.659 428.559 278.947 425.863 289.085C424.695 293.479 419.369 295.853 415.928 298.933C410.937 303.401 411.772 311.751 408.613 314.829C407.105 316.297 405.448 317.901 404.183 319.792C402 323.055 406.158 327.638 407.96 331.984C409.387 335.427 410.493 338.844 411.395 342.821C411.612 343.776 412.292 344.446 412.479 345.262C413.243 348.596 409.962 352.206 407.077 358.705C405.134 363.082 402.56 367.194 400.301 371.087C397.397 376.09 395.874 379.841 393.259 382.474C391.926 383.817 389.734 384.013 388.201 385.002C384.888 387.138 385.763 392.672 384.581 396.105C383.961 397.909 382.869 399.364 381.338 400.355C379.75 401.385 377.814 401.537 376.012 401.179C371.364 400.256 368.434 392.358 365.083 387.822C363.878 386.192 361.379 386.365 359.396 386.633C353.504 387.43 346.402 394.839 339.369 396.925C327.394 400.477 321.845 396.118 313.446 398.995C306.706 401.304 302.143 400.811 297.448 402.523C294.958 403.431 292.027 403.704 288.962 403.346C283.099 402.662 279.743 397.754 276.221 396.752C271.555 395.424 267.638 390.895 265.378 387.012C262.999 382.924 257.711 381.499 253.194 378.968C244.967 374.359 229.708 375.549 227.088 372.198C224.401 368.761 220.323 366.327 216.616 363.078C212.858 359.784 200.361 359.814 185.4 358.015C176.48 356.942 170.656 356.747 166.497 356.384C158.995 355.729 152.049 350.255 149.331 346.823C146.316 343.013 141.937 340.859 136.787 338.329C133.079 336.507 129.117 335.072 124.232 333.36C120.422 332.025 116.828 330.206 113.661 327.673C109.917 324.679 107.79 320.28 104.091 317.196C101.079 314.685 96.779 315.208 93.3437 313.133C88.6001 310.267 82.3548 307.99 77.3588 305.907C72.6608 303.948 69.1443 300.946 65.8877 298.592C62.1902 295.919 59.2066 292.818 54.785 288.844C52.9764 287.218 49.995 287.21 47.5594 286.04C43.2458 283.967 40.7943 277.104 36.7168 274.482C33.2142 272.229 30.499 266.82 26.3348 263.553C22.6333 260.648 19.4668 257.793 16.221 253.986C10.8271 247.66 6.6464 246.034 4.47084 243.146C1.99017 239.853 1.94307 235.566 1.12487 231.32C0.243798 226.748 4.27306 223.103 5.45431 219.307C6.90795 214.636 8.2503 210.64 11.3145 208.551C15.1826 205.914 17.8195 200.887 18.8219 193.596C20.955 178.083 19.4559 171.832 20.4448 166.926C21.3799 162.286 20.0086 155.381 18.9168 150.762C18.0475 147.085 17.8303 141.304 19.3584 136.224C21.0414 130.629 18.383 125.753 16.3023 121.412C13.9681 116.543 12.9536 109.508 14.7499 104.165C16.6426 98.5353 20.1712 94.1407 20.9894 90.2556C22.0895 85.0317 20.3554 80.2366 21.6179 76.4355C23.1207 71.911 28.2882 68.3049 32.2654 66.5845C35.7683 65.0693 38.2259 61.8026 40.7591 59.0933C43.748 55.8966 47.4375 53.859 51.1384 51.4179C56.798 47.6849 58.4589 44.1055 61.0787 38.8739C63.1291 34.7795 63.3464 28.0611 63.7934 21.1091C67.1286 17.3648 71.095 15.5605 73.723 12.946C74.357 12.1305 75.0722 11.2364 76.8929 9.77341" 
+              filter="url(#boundary-glow)" />
+      </svg>
+
+      <!-- Mesopotamian Civilization Boundary (Center contour) -->
+      <path id="boundary-meso" class="civ-boundary meso-boundary" 
+            d="M 430 155 C 480 155, 530 220, 575 320 C 600 380, 580 440, 530 480 C 470 500, 410 460, 365 380 C 330 300, 350 200, 430 155 Z" 
+            filter="url(#boundary-glow)" />
+
+      <!-- Egyptian Civilization Boundary (Left contour) -->
+      <path id="boundary-egypt" class="civ-boundary egypt-boundary" 
+            d="M 215 305 C 245 340, 255 420, 270 510 C 280 580, 245 640, 190 640 C 130 640, 95 540, 100 430 C 105 350, 155 310, 215 305 Z" 
+            filter="url(#boundary-glow)" />
+    </svg>
+
+    <!-- Subtle Gestural Hint at Bottom Center -->
+    <div id="gesture-hint" class="gesture-hint">
+      <span class="gesture-hint-icon">&#9995;</span>
+      <span>Hover over a civilization & close your palm to select</span>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: Full-Screen Expedition Video Player & Physical Walkthrough -->
+  <section id="video-screen" class="video-screen hidden">
+    <!-- Video Player Container -->
+    <div class="video-container">
+      <video id="expedition-video" class="expedition-video" playsinline preload="auto">
+        <source src="assets/walking.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Blowing Dust Off Sculpture Video -->
+      <video id="dust-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="assets/blowing_dust.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Museum UI Animation Video (Dancing Girl Museum Spotlight & Inscription) -->
+      <video id="museum-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="assets/Create_museum_UI_animation_1080p_20260916220242.mp4" type="video/mp4">
+        <source src="Create_museum_UI_animation_1080p_20260916220242.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Time Travel to Ancient City Video (Forearm Rolling Forward: Present Day -> 2500 BCE) -->
+      <video id="timetravel-video" class="expedition-video hidden" playsinline preload="auto" muted>
+        <source src="assets/Time_travel_to_ancient_city_20260916225041.mp4" type="video/mp4">
+        <source src="Time_travel_to_ancient_city_20260916225041.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Time Travel Reverse Video (Forearm Rolling Anticlockwise: 2500 BCE -> Present Day) -->
+      <video id="timetravel-video-reverse" class="expedition-video hidden" playsinline preload="auto" muted>
+        <source src="assets/Time_travel_reversed.mp4" type="video/mp4">
+        <source src="Time_travel_reversed.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Dancing Girl Info Video (Plays after dust clearing, shows artifact information) -->
+      <video id="dancing-girl-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="dancing_girl.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Last Video (Plays after time travel journey completes, then resets to landing) -->
+      <video id="last-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="last_video.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Video Placeholder Notice if file not found -->
+      <div id="video-placeholder" class="video-placeholder hidden">
+        <div class="placeholder-content">
+          <div class="placeholder-icon">&#127916;</div>
+          <h2 class="placeholder-title">Indus Valley Civilisation</h2>
+          <p class="placeholder-desc">Video file: <code>assets/walking.mp4</code></p>
+          <p class="placeholder-sub">Ready to explore the ancient roads of Mohenjo-daro.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Marching Walking Cadence HUD (Bottom Center) -->
+    <div id="walking-hud" class="walking-hud">
+      <div class="walking-status-indicator">
+        <div class="walking-pulse-ring" id="walking-pulse-ring"></div>
+        <span class="walking-icon" id="walking-icon">&#128099;</span>
+      </div>
+      <div class="walking-info">
+        <div class="walking-label-row">
+          <span class="walking-label" id="walking-status-text">March your legs to walk</span>
+          <span class="walking-sublabel">(or press &uarr; / W key)</span>
+        </div>
+        <div class="walking-meter"><div class="walking-meter-bar" id="walking-meter-bar"></div></div>
+      </div>
+      <span class="walking-speed-badge" id="walking-speed-badge">Idle</span>
+    </div>
+
+    <!-- Discovery Sighting & Dual-Hand Zoom Gesture (Floating over video, no card blocking view) -->
+    <div id="zoom-prompt" class="zoom-prompt hidden" title="Spread hands apart to zoom in (or tap / press 'Z')">
+      <div class="zoom-gesture-diagram" id="zoom-gesture-diagram">
+        <div class="zoom-hand left-hand">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/></svg>
+        </div>
+        <div class="zoom-arrows">
+          <span class="arrow-left">&larr;</span>
+          <span class="zoom-text-hint">SPREAD HANDS TO ZOOM</span>
+          <span class="arrow-right">&rarr;</span>
+        </div>
+        <div class="zoom-hand right-hand">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/></svg>
+        </div>
+      </div>
+      <button id="zoom-manual-btn" class="sr-only" aria-label="Tap to zoom in"></button>
+    </div>
+
+    <!-- Dust-Blowing Breath & Wipe Interaction (Floating gesture & small line, no card) -->
+    <div id="blow-instruction" class="blow-instruction hidden">
+      <div class="blow-gesture-content" id="blow-gesture-content">
+        <!-- Floating Animated Lips & Wind Dusting Diagram -->
+        <div class="blow-gesture-diagram">
+          <div class="blow-icon-lips" title="Pursed Lips Blowing Air">
+            <svg viewBox="0 0 48 48" class="lips-svg">
+              <path d="M8 24 C12 16, 20 15, 24 20 C28 15, 36 16, 40 24 C36 29, 28 30, 24 25 C20 30, 12 29, 8 24 Z" stroke="#e8c371" stroke-width="2.2" fill="rgba(218, 165, 32, 0.2)" />
+              <ellipse cx="24" cy="24" rx="4" ry="2.5" fill="#080c14" stroke="#f6da88" stroke-width="1.8" />
+            </svg>
+          </div>
+          
+          <div class="blow-wind-streams">
+            <span class="wind-line line-1"></span>
+            <span class="wind-line line-2"></span>
+            <span class="wind-line line-3"></span>
+            <span class="wind-sparkle">&#10022;</span>
+          </div>
+
+          <div class="blow-icon-hand" title="Fanning Hands">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="hand-svg">
+              <path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Small line to wipe off the dust under the gesture -->
+        <div class="blow-wipe-line-wrap">
+          <span class="blow-wipe-label" id="blow-status-text">Wipe off the dust</span>
+          <div class="blow-meter-container">
+            <div class="blow-meter-bar" id="blow-meter-bar"></div>
+          </div>
+        </div>
+
+        <button id="blow-manual-btn" class="sr-only" aria-label="Hold to blow air"></button>
+      </div>
+    </div>
+
+    <!-- Museum UI Action Bar (Subtle floating actions shown after museum animation) -->
+    <div id="museum-actions" class="museum-actions hidden">
+      <button id="museum-travel-btn" class="museum-act-btn primary" title="Enter Time Travel by Rolling Forearms">&#x23F3; Time Travel Portal</button>
+      <button id="museum-replay-btn" class="museum-act-btn" title="Replay museum presentation">&#x21bb; Replay Video</button>
+      <button id="museum-blow-btn" class="museum-act-btn" title="Wipe off dust again">&#x1F4A8; Blow Again</button>
+      <button id="museum-walk-btn" class="museum-act-btn" title="Walk through ruins again">&#x1F6B6; Walk Again</button>
+      <button id="museum-map-btn" class="museum-act-btn" title="Return to Ancient Map">&larr; Return to Map</button>
+    </div>
+
+    <!-- Floating Forearm Rolling Gesture Prompt (No card, pure floating gesture) -->
+    <div id="timetravel-gesture" class="timetravel-gesture hidden" title="Roll forearms over each other to travel in time">
+      <div class="tt-gesture-diagram" id="tt-gesture-diagram">
+        <svg class="tt-svg" id="tt-svg" viewBox="0 0 260 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <!-- Gradients for Forearm Holograms -->
+            <linearGradient id="armGradTop" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#0284c7" stop-opacity="0.18" />
+              <stop offset="45%" stop-color="#0ea5e9" stop-opacity="0.32" />
+              <stop offset="85%" stop-color="#38bdf8" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="#7dd3fc" stop-opacity="0.55" />
+            </linearGradient>
+            <linearGradient id="armGradBottom" x1="100%" y1="0%" x2="0%" y2="0%">
+              <stop offset="0%" stop-color="#0284c7" stop-opacity="0.18" />
+              <stop offset="45%" stop-color="#0ea5e9" stop-opacity="0.32" />
+              <stop offset="85%" stop-color="#38bdf8" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="#7dd3fc" stop-opacity="0.55" />
+            </linearGradient>
+          </defs>
+
+          <!-- Dashed Elliptical Orbit & Directional Indicator Arrows -->
+          <g class="tt-orbit-group">
+            <ellipse class="tt-orbit" cx="130" cy="90" rx="108" ry="68" stroke="#38bdf8" stroke-width="2.6" stroke-dasharray="10 6" opacity="0.88" />
+            <!-- Right Arrow (Clockwise Apex) -->
+            <polygon points="232,80 246,90 232,100" fill="#38bdf8" class="tt-arrow-cw" />
+            <!-- Left Arrow (Counter-Apex) -->
+            <polygon points="28,100 14,90 28,80" fill="#38bdf8" class="tt-arrow-ccw" />
+          </g>
+
+          <!-- Top Arm (Points Right: Forearm, Wrist, Palm, Thumb, Articulated Fingers) -->
+          <g class="tt-arm tt-arm-top" id="tt-arm-top">
+            <!-- Main Silhouette -->
+            <path d="M 34,52 
+                     C 26,54 26,62 34,65 
+                     C 58,71 86,72 116,68 
+                     L 132,65 
+                     C 138,66 146,68 156,67 
+                     C 166,66 172,64 174,62 
+                     C 174,59 168,58 158,59 
+                     C 168,58 176,57 178,54 
+                     C 178,51 172,50 162,51 
+                     C 172,50 180,49 182,46 
+                     C 181,43 175,42 165,43 
+                     C 173,42 176,39 175,37 
+                     C 173,34 167,35 158,37 
+                     C 152,38 146,35 140,32 
+                     C 134,30 128,32 124,37 
+                     L 120,41 
+                     C 98,38 72,39 48,44 
+                     C 38,46 34,49 34,52 Z" 
+                  fill="url(#armGradTop)" stroke="#38bdf8" stroke-width="2.4" stroke-linejoin="round" />
+
+            <!-- Wrist Line -->
+            <path d="M 120,41 C 124,49 126,57 122,66" stroke="#7dd3fc" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
+            
+            <!-- Forearm Muscle Highlight Line -->
+            <path d="M 48,54 C 74,53 100,51 116,53" stroke="#38bdf8" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.6" />
+
+            <!-- Palm Crease (Thenar Life Line) -->
+            <path d="M 132,45 C 136,51 138,57 146,62" stroke="#bae6fd" stroke-width="1.8" stroke-linecap="round" opacity="0.9" />
+
+            <!-- Hand Knuckle Creases & Finger Dividers -->
+            <path d="M 144,40 L 165,43" stroke="#67e8f9" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 146,47 L 168,50" stroke="#67e8f9" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 144,54 L 166,57" stroke="#67e8f9" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            
+            <!-- Thumb Crease -->
+            <path d="M 134,34 C 138,37 141,40 138,44" stroke="#bae6fd" stroke-width="1.6" stroke-linecap="round" opacity="0.85" />
+          </g>
+
+          <!-- Bottom Arm (Points Left: Forearm, Wrist, Palm, Thumb, Articulated Fingers) -->
+          <g class="tt-arm tt-arm-bottom" id="tt-arm-bottom">
+            <!-- Main Silhouette -->
+            <path d="M 226,128 
+                     C 234,126 234,118 226,115 
+                     C 202,109 174,108 144,112 
+                     L 128,115 
+                     C 122,114 114,112 104,113 
+                     C 94,114 88,116 86,118 
+                     C 86,121 92,122 102,121 
+                     C 92,122 84,123 82,126 
+                     C 82,129 88,130 98,129 
+                     C 88,130 80,131 78,134 
+                     C 79,137 85,138 95,137 
+                     C 87,138 84,141 85,143 
+                     C 87,146 93,145 102,143 
+                     C 108,142 114,145 120,148 
+                     C 126,150 132,148 136,143 
+                     L 140,139 
+                     C 162,142 188,141 212,136 
+                     C 222,134 226,131 226,128 Z" 
+                  fill="url(#armGradBottom)" stroke="#38bdf8" stroke-width="2.4" stroke-linejoin="round" />
+
+            <!-- Wrist Line -->
+            <path d="M 140,139 C 136,131 134,123 138,114" stroke="#7dd3fc" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
+            
+            <!-- Forearm Muscle Highlight Line -->
+            <path d="M 212,126 C 186,127 160,129 144,127" stroke="#38bdf8" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.6" />
+
+            <!-- Palm Crease (Thenar Life Line) -->
+            <path d="M 128,135 C 124,129 122,123 114,118" stroke="#bae6fd" stroke-width="1.8" stroke-linecap="round" opacity="0.9" />
+
+            <!-- Hand Knuckle Creases & Finger Dividers -->
+            <path d="M 116,140 L 95,137" stroke="#67e8f9" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 114,133 L 92,130" stroke="#67e8f9" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 116,126 L 94,123" stroke="#67e8f9" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            
+            <!-- Thumb Crease -->
+            <path d="M 126,146 C 122,143 119,140 122,136" stroke="#bae6fd" stroke-width="1.6" stroke-linecap="round" opacity="0.85" />
+          </g>
+        </svg>
+
+        <span class="tt-gesture-pill" id="tt-gesture-pill">Roll Forearms</span>
+      </div>
+    </div>
+
+    <!-- Back to Map Button -->
+    <button id="video-back-btn" class="video-back-btn" title="Back to Ancient Map" aria-label="Return to Map">
+      <span class="back-arrow">&#8592;</span>
+      <span>Back to Map</span>
+    </button>
+  </section>
+
+  <!-- Flash Warp Overlay for Cinematic Transition -->
+  <div id="warp-overlay" class="warp-overlay"></div>
+
+  <!-- Debug Vision Modal (Press 'D' or click sensor beacon) -->
+  <aside id="debug-modal" class="debug-modal hidden">
+    <div class="debug-header">
+      <span>Floor Vision Camera Debug (Press 'D' to close)</span>
+      <button id="debug-close-btn">&times;</button>
+    </div>
+    <div class="debug-body">
+      <!-- Camera Device Selector -->
+      <div class="debug-device-row">
+        <label for="debug-cam-select">Camera Device:</label>
+        <select id="debug-cam-select" class="debug-cam-select">
+          <option value="">Auto-Detecting Cameras...</option>
+        </select>
+      </div>
+
+      <canvas id="debug-canvas" width="320" height="240"></canvas>
+      <div class="debug-stats">
+        <div><span>Camera Status:</span> <strong id="debug-cam-status">Initializing...</strong></div>
+        <div><span>White Circle Found:</span> <strong id="debug-circle-found">Searching...</strong></div>
+        <div><span>Circle Center:</span> <span id="debug-circle-center">-</span></div>
+        <div><span>Occupancy Delta:</span> <strong id="debug-occupancy">0%</strong></div>
+        <div class="meter-bar"><div id="debug-meter-fill" class="meter-fill"></div></div>
+      </div>
+      <div class="debug-actions">
+        <button id="debug-retry-btn" class="debug-action-btn">Restart Camera</button>
+        <button id="debug-trigger-btn" class="debug-action-btn">Simulate Step</button>
+        <button id="debug-recalibrate-btn" class="debug-action-btn">Recalibrate</button>
+      </div>
+    </div>
+  </aside>
+
+  <script src="script.js"></script>
+</body>
+</html>
